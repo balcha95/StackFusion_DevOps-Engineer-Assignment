@@ -1,31 +1,63 @@
 pipeline {
-    agent { label 'sa-javaslave' }
+    agent { label 'slave2' }
+	
 
     tools {
         // Install the Maven version configured as "M3" and add it to the path.
-        maven "slave_maven"
+	        maven "maven"
     }
 
-    stages {
+	environment {	
+		DOCKERHUB_CREDENTIALS=credentials('devopsadmin')
+	} 
+    stages { 
         stage('SCM Checkout') {
             steps {
-                echo 'Checkout Src from github repo'
-		git 'https://github.com/LoksaiETA/Java-mvn-app2.git'
+                // Get some code from a GitHub repository
+                 git 'https://github.com/balcha95/star-agile-banking-finance.git'
             }
-        }
+		}
         stage('Maven Build') {
             steps {
-                echo 'Perform Maven Build'
                 // Run Maven on a Unix agent.
                 sh "mvn -Dmaven.test.failure.ignore=true clean package"
             }
+		}
+           stage("Docker build") { 
+            steps {
+				sh 'docker version'
+					sh "docker build -t balcha/banking_domin:${BUILD_NUMBER} ."
+					sh 'docker image list'
+					sh "docker tag balcha/banking_domin:${BUILD_NUMBER} balcha/banking_domin:latest"
+            }
         }
-        stage('Deploy to QA Server') {
+		stage('Login2DockerHub') {
+
+			steps {
+				sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+			}
+		}
+        stage('Approve - push Image to dockerhub'){
+            steps{
+                
+                //----------------send an approval prompt-------------
+                script {
+                   env.APPROVED_DEPLOY = input message: 'User input required Choose "yes" | "Abort"'
+                       }
+                //-----------------end approval prompt------------
+            }
+        }
+		stage('Push2DockerHub') {
+
+			steps {
+				sh "docker push balcha/banking_domin:latest"
+			}
+		}
+        stage('Deploy to Kubernetes Cluster') {
             steps {
 		script {
-		sshPublisher(publishers: [sshPublisherDesc(configName: 'QA_Server', transfers: [sshTransfer(cleanRemote: false, excludes: '', execCommand: '', execTimeout: 120000, flatten: false, makeEmptyDirs: false, noDefaultExcludes: false, patternSeparator: '[, ]+', remoteDirectory: '.', remoteDirectorySDF: false, removePrefix: 'target/', sourceFiles: 'target/mvn-hello-world.war')], usePromotionTimestamp: false, useWorkspaceInPromotion: false, verbose: false)])
-		}
+               sshPublisher(publishers: [sshPublisherDesc(configName: 'kubernetescluster', transfers: [sshTransfer(cleanRemote: false, excludes: '', execCommand: 'kubectl apply -f bankingdeployment.yaml', execTimeout: 120000, flatten: false, makeEmptyDirs: false, noDefaultExcludes: false, patternSeparator: '[, ]+', remoteDirectory: '.', remoteDirectorySDF: false, removePrefix: '', sourceFiles: '*.yaml')], usePromotionTimestamp: false, useWorkspaceInPromotion: false, verbose: false)])}
         }
-	}
     }
+}
 }
