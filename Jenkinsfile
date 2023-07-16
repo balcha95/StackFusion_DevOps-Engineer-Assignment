@@ -14,7 +14,7 @@ pipeline {
         stage('SCM Checkout') {
             steps {
                 // Get some code from a GitHub repository
-                 git 'https://github.com/balcha95/star-agile-banking-finance.git'
+                 git 'https://github.com/balcha95/StackFusion_DevOps-Engineer-Assignment.git'
             }
 		}
         stage('Maven Build') {
